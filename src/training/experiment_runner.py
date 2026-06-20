@@ -36,6 +36,7 @@ class ExperimentSpec:
     dropout: float = 0.4
     lambda_age: float = 0.01
     learning_rate: float = 1e-3
+    trainable_blocks: int = 0
 
 
 def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
@@ -226,10 +227,62 @@ def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
             learning_rate=config.learning_rate,
         ),
         # E5: fine-tuning exercises.
-        ExperimentSpec("E5", "ResNet18 fine-tuning", "resnet_finetuning_base", "base", "ninguno", False, "resnet_finetuning"),
-        ExperimentSpec("E5", "ResNet18 fine-tuning", "resnet_finetuning_unfreeze_more", "ablacion", "mas bloques descongelados", False, "resnet_finetuning"),
-        ExperimentSpec("E5", "ResNet18 fine-tuning", "resnet_finetuning_lr_low", "ablacion", "learning rate menor", False, "resnet_finetuning"),
-        ExperimentSpec("E5", "ResNet18 fine-tuning", "resnet_finetuning_lambda_high", "ablacion", f"lambda_age={high_lambda:g}", False, "resnet_finetuning"),
+        ExperimentSpec(
+            "E5",
+            "ResNet18 fine-tuning",
+            "resnet_finetuning_base",
+            "base",
+            "ninguno",
+            True,
+            "resnet_finetuning",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate,
+            trainable_blocks=1,
+        ),
+        ExperimentSpec(
+            "E5",
+            "ResNet18 fine-tuning",
+            "resnet_finetuning_unfreeze_more",
+            "ablacion",
+            "mas bloques descongelados",
+            True,
+            "resnet_finetuning",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate,
+            trainable_blocks=2,
+        ),
+        ExperimentSpec(
+            "E5",
+            "ResNet18 fine-tuning",
+            "resnet_finetuning_lr_low",
+            "ablacion",
+            "learning rate menor",
+            True,
+            "resnet_finetuning",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate / 10,
+            trainable_blocks=1,
+        ),
+        ExperimentSpec(
+            "E5",
+            "ResNet18 fine-tuning",
+            "resnet_finetuning_lambda_high",
+            "ablacion",
+            f"lambda_age={high_lambda:g}",
+            True,
+            "resnet_finetuning",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=high_lambda,
+            learning_rate=config.learning_rate,
+            trainable_blocks=1,
+        ),
     ]
     return {spec.name: spec for spec in specs}
 
@@ -348,7 +401,7 @@ class ExperimentRunner:
                 message=str(error),
             )
 
-    def _build_model(self, spec: ExperimentSpec) -> tuple[nn.Module, dict[str, int | float]]:
+    def _build_model(self, spec: ExperimentSpec) -> tuple[nn.Module, dict[str, int | float | bool]]:
         if spec.model_kind == "cnn":
             model_kwargs = {"dropout": spec.dropout}
             return MultiTaskCNN(**model_kwargs), model_kwargs
@@ -358,10 +411,14 @@ class ExperimentRunner:
             return model, {"image_size": self.config.image_size, "dropout": spec.dropout}
 
         if spec.model_kind == "resnet_frozen":
-            model = MultiTaskResNet(freeze_backbone=True, pretrained=True)
-            return model, {"freeze_backbone": True, "pretrained": True}
+            model = MultiTaskResNet(trainable_blocks=0, pretrained=True)
+            return model, {"trainable_blocks": 0, "pretrained": True}
 
-        # TODO(alumno): extend this factory when E5 is implemented.
+        if spec.model_kind == "resnet_finetuning":
+            model = MultiTaskResNet(trainable_blocks=spec.trainable_blocks, pretrained=True)
+            return model, {"trainable_blocks": spec.trainable_blocks, "pretrained": True}
+
+        # TODO(alumno): extend this factory when other strategies are implemented.
         raise NotImplementedError(f"No existe una fabrica para model_kind={spec.model_kind}.")
 
     @staticmethod

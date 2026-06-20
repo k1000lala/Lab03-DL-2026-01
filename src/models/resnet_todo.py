@@ -12,16 +12,23 @@ from src.models.base import BaseMultiTaskModel
 class MultiTaskResNet(BaseMultiTaskModel):
     """Learn shared ResNet18 features and predict gender and age."""
 
-    def __init__(self, freeze_backbone: bool = True, pretrained: bool = True) -> None:
+    def __init__(self, trainable_blocks: int = 0, pretrained: bool = True) -> None:
         super().__init__()
-        self.freeze_backbone = freeze_backbone
+        if trainable_blocks < 0:
+            raise ValueError("trainable_blocks debe ser >= 0.")
+
+        self.trainable_blocks = trainable_blocks
         self.pretrained = pretrained
 
         weights = models.ResNet18_Weights.DEFAULT if pretrained else None
         backbone = models.resnet18(weights=weights)
-        if freeze_backbone:
-            for parameter in backbone.parameters():
-                parameter.requires_grad = False
+        for parameter in backbone.parameters():
+            parameter.requires_grad = False
+
+        unfreezable = [backbone.layer4, backbone.layer3, backbone.layer2, backbone.layer1]
+        for index in range(min(trainable_blocks, len(unfreezable))):
+            for parameter in unfreezable[index].parameters():
+                parameter.requires_grad = True
 
         in_features = backbone.fc.in_features
         backbone.fc = nn.Identity()
