@@ -14,6 +14,8 @@ from src.evaluation.metrics import MultiTaskEvaluator
 from src.evaluation.plots import ResultPlotter
 from src.evaluation.reporter import ExperimentResult, ExperimentStatus
 from src.models.cnn import MultiTaskCNN
+from src.models.mlp_todo import MultiTaskMLP
+from src.models.resnet_todo import MultiTaskResNet
 from src.training.losses import MultiTaskLoss
 from src.training.trainer import MultiTaskTrainer
 from src.utils import set_seed
@@ -52,10 +54,58 @@ def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
         ExperimentSpec("E1", "Baseline clasico", "classical_pca_50", "ablacion", "PCA=50 componentes", False, "classical"),
         ExperimentSpec("E1", "Baseline clasico", "classical_pca_200", "ablacion", "PCA=200 componentes", False, "classical"),
         # E2: students must implement both the base MLP and its ablations.
-        ExperimentSpec("E2", "MLP multitarea", "mlp_base", "base", "ninguno", False, "mlp"),
-        ExperimentSpec("E2", "MLP multitarea", "mlp_no_dropout", "ablacion", "dropout=0.0", False, "mlp"),
-        ExperimentSpec("E2", "MLP multitarea", "mlp_lambda_low", "ablacion", f"lambda_age={low_lambda:g}", False, "mlp"),
-        ExperimentSpec("E2", "MLP multitarea", "mlp_lambda_high", "ablacion", f"lambda_age={high_lambda:g}", False, "mlp"),
+        ExperimentSpec(
+            "E2",
+            "MLP multitarea",
+            "mlp_base",
+            "base",
+            "ninguno",
+            True,
+            "mlp",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate,
+        ),
+        ExperimentSpec(
+            "E2",
+            "MLP multitarea",
+            "mlp_no_dropout",
+            "ablacion",
+            "dropout=0.0",
+            True,
+            "mlp",
+            use_augmentation=True,
+            dropout=0.0,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate,
+        ),
+        ExperimentSpec(
+            "E2",
+            "MLP multitarea",
+            "mlp_lambda_low",
+            "ablacion",
+            f"lambda_age={low_lambda:g}",
+            True,
+            "mlp",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=low_lambda,
+            learning_rate=config.learning_rate,
+        ),
+        ExperimentSpec(
+            "E2",
+            "MLP multitarea",
+            "mlp_lambda_high",
+            "ablacion",
+            f"lambda_age={high_lambda:g}",
+            True,
+            "mlp",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=high_lambda,
+            learning_rate=config.learning_rate,
+        ),
         # E3: complete PyTorch CNN example and one-change-at-a-time ablations.
         ExperimentSpec(
             "E3",
@@ -123,10 +173,58 @@ def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
             learning_rate=config.learning_rate,
         ),
         # E4: frozen ResNet transfer learning exercises.
-        ExperimentSpec("E4", "ResNet18 congelada", "resnet_frozen_base", "base", "ninguno", False, "resnet_frozen"),
-        ExperimentSpec("E4", "ResNet18 congelada", "resnet_frozen_no_augmentation", "ablacion", "sin aumentacion", False, "resnet_frozen"),
-        ExperimentSpec("E4", "ResNet18 congelada", "resnet_frozen_lambda_low", "ablacion", f"lambda_age={low_lambda:g}", False, "resnet_frozen"),
-        ExperimentSpec("E4", "ResNet18 congelada", "resnet_frozen_lambda_high", "ablacion", f"lambda_age={high_lambda:g}", False, "resnet_frozen"),
+        ExperimentSpec(
+            "E4",
+            "ResNet18 congelada",
+            "resnet_frozen_base",
+            "base",
+            "ninguno",
+            True,
+            "resnet_frozen",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate,
+        ),
+        ExperimentSpec(
+            "E4",
+            "ResNet18 congelada",
+            "resnet_frozen_no_augmentation",
+            "ablacion",
+            "sin aumentacion",
+            True,
+            "resnet_frozen",
+            use_augmentation=False,
+            dropout=0.4,
+            lambda_age=config.lambda_age,
+            learning_rate=config.learning_rate,
+        ),
+        ExperimentSpec(
+            "E4",
+            "ResNet18 congelada",
+            "resnet_frozen_lambda_low",
+            "ablacion",
+            f"lambda_age={low_lambda:g}",
+            True,
+            "resnet_frozen",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=low_lambda,
+            learning_rate=config.learning_rate,
+        ),
+        ExperimentSpec(
+            "E4",
+            "ResNet18 congelada",
+            "resnet_frozen_lambda_high",
+            "ablacion",
+            f"lambda_age={high_lambda:g}",
+            True,
+            "resnet_frozen",
+            use_augmentation=True,
+            dropout=0.4,
+            lambda_age=high_lambda,
+            learning_rate=config.learning_rate,
+        ),
         # E5: fine-tuning exercises.
         ExperimentSpec("E5", "ResNet18 fine-tuning", "resnet_finetuning_base", "base", "ninguno", False, "resnet_finetuning"),
         ExperimentSpec("E5", "ResNet18 fine-tuning", "resnet_finetuning_unfreeze_more", "ablacion", "mas bloques descongelados", False, "resnet_finetuning"),
@@ -250,13 +348,20 @@ class ExperimentRunner:
                 message=str(error),
             )
 
-    @staticmethod
-    def _build_model(spec: ExperimentSpec) -> tuple[nn.Module, dict[str, float]]:
+    def _build_model(self, spec: ExperimentSpec) -> tuple[nn.Module, dict[str, int | float]]:
         if spec.model_kind == "cnn":
             model_kwargs = {"dropout": spec.dropout}
             return MultiTaskCNN(**model_kwargs), model_kwargs
 
-        # TODO(alumno): extend this factory when E2, E4 and E5 are implemented.
+        if spec.model_kind == "mlp":
+            model = MultiTaskMLP(image_size=self.config.image_size, dropout=spec.dropout)
+            return model, {"image_size": self.config.image_size, "dropout": spec.dropout}
+
+        if spec.model_kind == "resnet_frozen":
+            model = MultiTaskResNet(freeze_backbone=True, pretrained=True)
+            return model, {"freeze_backbone": True, "pretrained": True}
+
+        # TODO(alumno): extend this factory when E5 is implemented.
         raise NotImplementedError(f"No existe una fabrica para model_kind={spec.model_kind}.")
 
     @staticmethod

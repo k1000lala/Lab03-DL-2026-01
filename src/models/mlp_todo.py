@@ -1,27 +1,36 @@
-"""Exercise placeholder for the multitask MLP strategy."""
+"""Multitask multilayer perceptron implemented with PyTorch."""
 
 from __future__ import annotations
 
 import torch
+from torch import nn
 
 from src.models.base import BaseMultiTaskModel
 
 
 class MultiTaskMLP(BaseMultiTaskModel):
-    """TODO(alumno): implement E2 using PyTorch.
+    """Learn shared fully connected features and predict gender and age."""
 
-    Suggested steps:
-    1. Flatten the RGB image.
-    2. Build a shared fully connected representation.
-    3. Add one head with two gender logits and one scalar age head.
-    4. Expose dropout as a constructor argument so it can be ablated.
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, image_size: int = 224, dropout: float = 0.4) -> None:
         super().__init__()
-        raise NotImplementedError(
-            "E2 MultiTaskMLP no ha sido implementado. Complete src/models/mlp_todo.py."
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError("dropout debe estar en el intervalo [0, 1).")
+
+        self.image_size = image_size
+        self.dropout = dropout
+        self.shared = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(3 * image_size * image_size, 256),
+            nn.ReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(256, 128),
+            nn.ReLU(),
         )
+        self.gender_head = nn.Linear(128, 2)
+        self.age_head = nn.Linear(128, 1)
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        raise NotImplementedError("TODO(alumno): implementar forward de MultiTaskMLP.")
+        representation = self.shared(images)
+        gender_logits = self.gender_head(representation)
+        age_predictions = self.age_head(representation).squeeze(1)
+        return gender_logits, age_predictions

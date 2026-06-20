@@ -1,26 +1,36 @@
-"""Exercise placeholder for ResNet transfer learning strategies."""
+"""ResNet transfer learning multitask model implemented with PyTorch."""
 
 from __future__ import annotations
 
 import torch
+from torch import nn
+from torchvision import models
 
 from src.models.base import BaseMultiTaskModel
 
 
 class MultiTaskResNet(BaseMultiTaskModel):
-    """TODO(alumno): implement E4 and E5 with torchvision.models.resnet18.
+    """Learn shared ResNet18 features and predict gender and age."""
 
-    The implementation should support a frozen backbone and fine-tuning. It
-    must replace the original classification layer with separate gender and age
-    heads, and expose the number of unfrozen blocks for ablation studies.
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, freeze_backbone: bool = True, pretrained: bool = True) -> None:
         super().__init__()
-        raise NotImplementedError(
-            "E4/E5 MultiTaskResNet no ha sido implementado. "
-            "Complete src/models/resnet_todo.py."
-        )
+        self.freeze_backbone = freeze_backbone
+        self.pretrained = pretrained
+
+        weights = models.ResNet18_Weights.DEFAULT if pretrained else None
+        backbone = models.resnet18(weights=weights)
+        if freeze_backbone:
+            for parameter in backbone.parameters():
+                parameter.requires_grad = False
+
+        in_features = backbone.fc.in_features
+        backbone.fc = nn.Identity()
+        self.backbone = backbone
+        self.gender_head = nn.Linear(in_features, 2)
+        self.age_head = nn.Linear(in_features, 1)
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        raise NotImplementedError("TODO(alumno): implementar forward de MultiTaskResNet.")
+        representation = self.backbone(images)
+        gender_logits = self.gender_head(representation)
+        age_predictions = self.age_head(representation).squeeze(1)
+        return gender_logits, age_predictions
