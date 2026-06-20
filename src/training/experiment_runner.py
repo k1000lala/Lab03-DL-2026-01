@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn, optim
+from torch.utils.data import DataLoader
 
+from src.baselines.classical_todo import ClassicalBaseline
 from src.config import AppConfig
 from src.data.datamodule import UTKFaceDataModule
-from src.evaluation.metrics import MultiTaskEvaluator
+from src.data.dataset import UTKFaceDataset
+from src.evaluation.metrics import MultiTaskEvaluator, MultiTaskMetrics
 from src.evaluation.plots import ResultPlotter
 from src.evaluation.reporter import ExperimentResult, ExperimentStatus
 from src.models.cnn import MultiTaskCNN
@@ -37,6 +42,7 @@ class ExperimentSpec:
     lambda_age: float = 0.01
     learning_rate: float = 1e-3
     trainable_blocks: int = 0
+    pca_components: int = 100
 
 
 def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
@@ -51,9 +57,18 @@ def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
 
     specs = [
         # E1: classical baseline. The estimator itself will use scikit-learn.
-        ExperimentSpec("E1", "Baseline clasico", "classical_base", "base", "ninguno", False, "classical"),
-        ExperimentSpec("E1", "Baseline clasico", "classical_pca_50", "ablacion", "PCA=50 componentes", False, "classical"),
-        ExperimentSpec("E1", "Baseline clasico", "classical_pca_200", "ablacion", "PCA=200 componentes", False, "classical"),
+        ExperimentSpec(
+            "E1", "Baseline clasico", "classical_base", "base", "ninguno",
+            True, "classical", pca_components=100,
+        ),
+        ExperimentSpec(
+            "E1", "Baseline clasico", "classical_pca_50", "ablacion", "PCA=50 componentes",
+            True, "classical", pca_components=50,
+        ),
+        ExperimentSpec(
+            "E1", "Baseline clasico", "classical_pca_200", "ablacion", "PCA=200 componentes",
+            True, "classical", pca_components=200,
+        ),
         # E2: students must implement both the base MLP and its ablations.
         ExperimentSpec(
             "E2",
@@ -320,6 +335,9 @@ class ExperimentRunner:
         return results
 
     def _run_spec(self, spec: ExperimentSpec) -> ExperimentResult:
+        if spec.model_kind == "classical":
+            return self._run_classical_spec(spec)
+
         print(f"\nEjecutando {spec.name}: {spec.changed_component}")
         try:
             set_seed(self.config.seed)
@@ -400,6 +418,78 @@ class ExperimentRunner:
                 status=ExperimentStatus.ERROR,
                 message=str(error),
             )
+
+    def _run_classical_spec(self, spec: ExperimentSpec) -> ExperimentResult:
+        print(f"\nEjecutando {spec.name}: {spec.changed_component}")
+        try:
+            set_seed(self.config.seed)
+            data_module = UTKFaceDataModule(self.config, use_augmentation=False)
+            data_module.setup()
+
+            X_train, gender_train, age_train = self._extract_arrays(data_module.train_dataset)
+            X_test, gender_test, age_test = self._extract_arrays(data_module.test_dataset)
+
+            model = ClassicalBaseline(n_components=spec.pca_components)
+            start_time = time.perf_counter()
+            model.fit(X_train, gender_train, age_train)
+            training_seconds = time.perf_counter() - start_time
+
+            gender_pred, age_pred = model.predict(X_test)
+            evaluation = MultiTaskMetrics.calculate(
+                gender_targets=torch.from_numpy(gender_test).long(),
+                gender_predictions=torch.from_numpy(gender_pred).long(),
+                age_targets=torch.from_numpy(age_test).float(),
+                age_predictions=torch.from_numpy(age_pred).float(),
+            )
+
+            sizes = data_module.split_sizes()
+            metrics = dict(evaluation.metrics)
+            metrics.update(
+                {
+                    "train_samples": sizes["train"],
+                    "validation_samples": sizes["validation"],
+                    "test_samples": sizes["test"],
+                }
+            )
+            return ExperimentResult(
+                strategy_id=spec.strategy_id,
+                strategy_name=spec.strategy_name,
+                experiment_name=spec.name,
+                variant=spec.variant,
+                changed_component=spec.changed_component,
+                status=ExperimentStatus.COMPLETED,
+                metrics=metrics,
+                trainable_parameters=None,
+                training_seconds=training_seconds,
+                checkpoint="",
+                message="",
+            )
+        except Exception as error:
+            return ExperimentResult(
+                strategy_id=spec.strategy_id,
+                strategy_name=spec.strategy_name,
+                experiment_name=spec.name,
+                variant=spec.variant,
+                changed_component=spec.changed_component,
+                status=ExperimentStatus.ERROR,
+                message=str(error),
+            )
+
+    @staticmethod
+    def _extract_arrays(dataset: UTKFaceDataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        loader = DataLoader(dataset, batch_size=64, shuffle=False)
+        images: list[torch.Tensor] = []
+        genders: list[torch.Tensor] = []
+        ages: list[torch.Tensor] = []
+        for batch_images, batch_gender, batch_age in loader:
+            images.append(batch_images)
+            genders.append(batch_gender)
+            ages.append(batch_age)
+
+        flattened = torch.cat(images).reshape(len(dataset), -1).numpy()
+        gender_array = torch.cat(genders).numpy()
+        age_array = torch.cat(ages).numpy()
+        return flattened, gender_array, age_array
 
     def _build_model(self, spec: ExperimentSpec) -> tuple[nn.Module, dict[str, int | float | bool]]:
         if spec.model_kind == "cnn":

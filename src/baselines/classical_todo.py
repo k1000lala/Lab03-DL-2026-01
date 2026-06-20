@@ -1,24 +1,33 @@
-"""Exercise placeholder for the classical PCA baseline."""
+"""Classical PCA baseline (E1): scikit-learn estimators on flattened pixels."""
+
+from __future__ import annotations
+
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegression, Ridge
 
 
 class ClassicalBaseline:
-    """TODO(alumno): implement E1 with PCA and classical estimators.
+    """PCA dimensionality reduction followed by independent gender/age estimators.
 
-    This is the only strategy that is not expected to use PyTorch for the
-    estimator itself. It should still use exactly the same split manifest as
-    the neural experiments and report gender and age metrics separately.
-
-    Suggested ablations:
-    - Number of PCA components.
-    - Gender classifier: GaussianNB or LogisticRegression.
-    - Age regressor: Ridge, LinearRegression or RandomForestRegressor.
+    Gender uses LogisticRegression, age uses Ridge. Both estimators are fit
+    on the same PCA-projected features so the only shared component is the
+    dimensionality reduction step.
     """
 
-    def fit(self, *args, **kwargs) -> None:
-        raise NotImplementedError(
-            "E1 baseline clasico no ha sido implementado. "
-            "Complete src/baselines/classical_todo.py."
-        )
+    def __init__(self, n_components: int = 100) -> None:
+        self.n_components = n_components
+        self.pca = PCA(n_components=n_components, random_state=42)
+        self.gender_model = LogisticRegression(max_iter=1000)
+        self.age_model = Ridge()
 
-    def predict(self, *args, **kwargs):
-        raise NotImplementedError("TODO(alumno): implementar predict del baseline clasico.")
+    def fit(self, X: np.ndarray, y_gender: np.ndarray, y_age: np.ndarray) -> None:
+        X_reduced = self.pca.fit_transform(X)
+        self.gender_model.fit(X_reduced, y_gender)
+        self.age_model.fit(X_reduced, y_age)
+
+    def predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        X_reduced = self.pca.transform(X)
+        gender_pred = self.gender_model.predict(X_reduced)
+        age_pred = self.age_model.predict(X_reduced)
+        return gender_pred, age_pred

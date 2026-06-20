@@ -20,4 +20,5 @@ def test_catalog_requires_ablations_for_every_strategy(tmp_path) -> None:
         assert any(spec.variant == "ablacion" for spec in specs)
 
     assert catalog["cnn_base"].implemented is True
-    assert catalog["mlp_base"].implemented is False
+    assert catalog["mlp_base"].implemented is True
+    assert catalog["classical_base"].implemented is True
