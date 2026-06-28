@@ -176,11 +176,11 @@ python3 main.py \
 
 | ID | Estrategia | Estado inicial |
 |---|---|---|
-| E1 | PCA + modelos clásicos | `NO_IMPLEMENTADO` |
-| E2 | MLP multitarea | `NO_IMPLEMENTADO` |
+| E1 | PCA + modelos clásicos | `COMPLETADO` |
+| E2 | MLP multitarea | `COMPLETADO` |
 | E3 | CNN simple multitarea | `IMPLEMENTADO` |
-| E4 | ResNet18 congelada | `NO_IMPLEMENTADO` |
-| E5 | ResNet18 fine-tuning | `NO_IMPLEMENTADO` |
+| E4 | ResNet18 congelada | `COMPLETADO` |
+| E5 | ResNet18 fine-tuning | `COMPLETADO` |
 
 En esta estructura, E6 no es un modelo independiente. E6 representa el
 análisis transversal de ablaciones que debe aplicarse a E1, E2, E3, E4 y E5.
