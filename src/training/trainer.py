@@ -1,4 +1,4 @@
-"""A transparent PyTorch training loop for educational use."""
+"""Un bucle de entrenamiento de PyTorch transparente para uso educativo."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from src.training.losses import MultiTaskLoss
 
 
 class MultiTaskTrainer:
-    """Train, validate and checkpoint a multitask PyTorch model."""
+    """Entrena, valida y guarda checkpoints de un modelo multitarea de PyTorch."""
 
     def __init__(
         self,
@@ -26,6 +26,16 @@ class MultiTaskTrainer:
         checkpoint_path: Path,
         checkpoint_metadata: dict[str, Any],
     ) -> None:
+        """Configura el entrenador con el modelo, el optimizador y la función de pérdida.
+
+        Args:
+            model: Modelo multitarea de PyTorch a entrenar.
+            optimizer: Optimizador usado para actualizar los parámetros del modelo.
+            loss_function: Función de pérdida combinada de género y edad.
+            device: Dispositivo (CPU/GPU) donde se ejecutan el modelo y los datos.
+            checkpoint_path: Ruta del archivo donde se guarda el mejor checkpoint.
+            checkpoint_metadata: Metadatos adicionales incluidos en cada checkpoint.
+        """
         self.model = model
         self.optimizer = optimizer
         self.loss_function = loss_function
@@ -39,7 +49,17 @@ class MultiTaskTrainer:
         val_loader: DataLoader,
         epochs: int,
     ) -> tuple[list[dict[str, float]], float]:
-        """Run all epochs and save the checkpoint with the lowest validation loss."""
+        """Ejecuta todas las épocas y guarda el checkpoint con la menor pérdida de validación.
+
+        Args:
+            train_loader: DataLoader con los lotes de entrenamiento.
+            val_loader: DataLoader con los lotes de validación.
+            epochs: Número de épocas a ejecutar.
+
+        Returns:
+            Tupla con el historial de métricas por época y el tiempo total de
+            entrenamiento en segundos.
+        """
 
         history: list[dict[str, float]] = []
         best_val_loss = float("inf")
@@ -78,7 +98,12 @@ class MultiTaskTrainer:
         return history, training_seconds
 
     def load_best_checkpoint(self) -> dict[str, Any]:
-        """Restore the model selected using validation loss."""
+        """Restaura el modelo seleccionado mediante la pérdida de validación.
+
+        Returns:
+            Diccionario del checkpoint cargado, incluyendo metadatos y el estado
+            del modelo.
+        """
 
         checkpoint = torch.load(
             self.checkpoint_path,
@@ -89,6 +114,16 @@ class MultiTaskTrainer:
         return checkpoint
 
     def _run_epoch(self, loader: DataLoader, training: bool) -> dict[str, float]:
+        """Ejecuta una época completa de entrenamiento o validación.
+
+        Args:
+            loader: DataLoader con los lotes de imágenes y etiquetas de género y edad.
+            training: Si es True, actualiza los pesos del modelo; si es False, solo evalúa.
+
+        Returns:
+            Diccionario con el promedio de pérdida total, de género y de edad
+            sobre todas las muestras procesadas.
+        """
         if training:
             self.model.train()
         else:
@@ -130,6 +165,12 @@ class MultiTaskTrainer:
         return {name: value / sample_count for name, value in totals.items()}
 
     def _save_checkpoint(self, epoch: int, val_loss: float) -> None:
+        """Guarda el estado del modelo y los metadatos del experimento en disco.
+
+        Args:
+            epoch: Número de época en la que se generó el checkpoint.
+            val_loss: Pérdida de validación asociada a este checkpoint.
+        """
         self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         checkpoint = {
             **self.checkpoint_metadata,

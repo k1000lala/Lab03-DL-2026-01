@@ -1,4 +1,4 @@
-"""Detect and crop the largest face from a new image."""
+"""Detecta y recorta el rostro más grande de una imagen nueva."""
 
 from __future__ import annotations
 
@@ -12,16 +12,25 @@ from PIL import Image, ImageDraw
 
 @dataclass(frozen=True)
 class FaceDetection:
-    """The selected face crop and its bounding box in the original image."""
+    """El recorte del rostro seleccionado y su caja delimitadora en la imagen original."""
 
     crop: Image.Image
     box: tuple[int, int, int, int]
 
 
 class FaceDetector:
-    """Use OpenCV's Haar cascade for a small educational deployment."""
+    """Usa el clasificador en cascada Haar de OpenCV para un despliegue educativo pequeño."""
 
     def __init__(self, cascade_path: str | Path | None = None) -> None:
+        """Carga el clasificador en cascada Haar para detección de rostros frontales.
+
+        Args:
+            cascade_path: Ruta al archivo XML del clasificador en cascada. Si es
+                None, usa el cascade frontal por defecto incluido en OpenCV.
+
+        Raises:
+            RuntimeError: Si el clasificador no se pudo cargar desde `cascade_path`.
+        """
         if cascade_path is None:
             cascade_path = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
         self.cascade_path = Path(cascade_path)
@@ -30,7 +39,15 @@ class FaceDetector:
             raise RuntimeError(f"No se pudo cargar el detector facial: {self.cascade_path}")
 
     def detect_largest(self, image: Image.Image) -> FaceDetection | None:
-        """Return the largest frontal face, or None when no face is found."""
+        """Detecta el rostro frontal más grande de la imagen.
+
+        Args:
+            image: Imagen de entrada en la que buscar rostros.
+
+        Returns:
+            `FaceDetection` con el recorte y la caja del rostro más grande, o
+            None si no se detectó ningún rostro.
+        """
 
         rgb_image = image.convert("RGB")
         array = np.asarray(rgb_image)
@@ -50,7 +67,15 @@ class FaceDetector:
 
     @staticmethod
     def draw_box(image: Image.Image, detection: FaceDetection) -> Image.Image:
-        """Create a copy of the image with the selected face highlighted."""
+        """Crea una copia de la imagen con el rostro seleccionado resaltado.
+
+        Args:
+            image: Imagen original sobre la que dibujar.
+            detection: Detección cuya caja se va a resaltar.
+
+        Returns:
+            Copia de la imagen con un rectángulo rojo alrededor del rostro detectado.
+        """
 
         annotated = image.convert("RGB").copy()
         drawer = ImageDraw.Draw(annotated)

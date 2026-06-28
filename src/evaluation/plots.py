@@ -1,4 +1,4 @@
-"""Generate diagnostic plots for completed experiments."""
+"""Genera gráficos de diagnóstico para los experimentos completados."""
 
 from __future__ import annotations
 
@@ -15,9 +15,14 @@ from src.evaluation.reporter import ExperimentResult, ExperimentStatus
 
 
 class ResultPlotter:
-    """Save curves and comparisons instead of relying on manual screenshots."""
+    """Guarda curvas y comparaciones en lugar de depender de capturas manuales."""
 
     def __init__(self, plots_dir: Path) -> None:
+        """Inicializa el plotter y crea el directorio de salida si no existe.
+
+        Args:
+            plots_dir: Directorio donde se guardan todos los gráficos generados.
+        """
         self.plots_dir = plots_dir
         self.plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -26,6 +31,16 @@ class ResultPlotter:
         history: list[dict[str, float]],
         experiment_name: str,
     ) -> Path:
+        """Grafica las curvas de pérdida total, de género y de edad por época.
+
+        Args:
+            history: Lista de filas de métricas por época, producida por
+                `MultiTaskTrainer.fit`.
+            experiment_name: Nombre del experimento, usado para el subdirectorio de salida.
+
+        Returns:
+            Ruta del archivo PNG generado.
+        """
         output_dir = self._experiment_dir(experiment_name)
         epochs = [int(row["epoch"]) for row in history]
         loss_pairs = [
@@ -55,6 +70,15 @@ class ResultPlotter:
         evaluation: EvaluationResult,
         experiment_name: str,
     ) -> Path:
+        """Grafica la matriz de confusión de género como un mapa de calor.
+
+        Args:
+            evaluation: Resultado de evaluación con la matriz de confusión.
+            experiment_name: Nombre del experimento, usado para el subdirectorio de salida.
+
+        Returns:
+            Ruta del archivo PNG generado.
+        """
         output_dir = self._experiment_dir(experiment_name)
         matrix = evaluation.confusion_matrix
         figure, axis = plt.subplots(figsize=(5, 4))
@@ -81,6 +105,15 @@ class ResultPlotter:
         evaluation: EvaluationResult,
         experiment_name: str,
     ) -> Path:
+        """Grafica la dispersión de edad real versus edad predicha.
+
+        Args:
+            evaluation: Resultado de evaluación con las edades reales y predichas.
+            experiment_name: Nombre del experimento, usado para el subdirectorio de salida.
+
+        Returns:
+            Ruta del archivo PNG generado.
+        """
         output_dir = self._experiment_dir(experiment_name)
         figure, axis = plt.subplots(figsize=(6, 5))
         axis.scatter(
@@ -109,6 +142,16 @@ class ResultPlotter:
         results: list[ExperimentResult],
         strategy_id: str,
     ) -> list[Path]:
+        """Grafica accuracy/F1 de género y MAE/RMSE de edad de las ablaciones completadas.
+
+        Args:
+            results: Resultados de todos los experimentos ejecutados.
+            strategy_id: Identificador de estrategia (p. ej. "E3") a filtrar.
+
+        Returns:
+            Rutas de los PNG generados, o lista vacía si no hay experimentos
+            completados para esa estrategia.
+        """
         completed = [
             result
             for result in results
@@ -143,6 +186,14 @@ class ResultPlotter:
         return output_paths
 
     def _experiment_dir(self, experiment_name: str) -> Path:
+        """Devuelve (y crea si falta) el subdirectorio de gráficos de un experimento.
+
+        Args:
+            experiment_name: Nombre del experimento.
+
+        Returns:
+            Ruta del subdirectorio `plots_dir/experiment_name`.
+        """
         output_dir = self.plots_dir / experiment_name
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
@@ -155,6 +206,18 @@ class ResultPlotter:
         title: str,
         output_path: Path,
     ) -> Path:
+        """Dibuja un gráfico de barras agrupadas con una o más series por nombre.
+
+        Args:
+            names: Etiquetas del eje X (p. ej. nombres de experimentos).
+            series: Lista de series de valores, una por cada elemento de `labels`.
+            labels: Nombre de cada serie, mostrado en la leyenda.
+            title: Título del gráfico.
+            output_path: Ruta donde se guarda el PNG generado.
+
+        Returns:
+            La misma ruta recibida en `output_path`.
+        """
         import numpy as np
 
         x = np.arange(len(names))

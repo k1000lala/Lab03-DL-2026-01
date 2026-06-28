@@ -1,4 +1,4 @@
-"""Experiment catalog and orchestration for the laboratory."""
+"""Catálogo de experimentos y orquestación del laboratorio."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from src.utils import set_seed
 
 @dataclass(frozen=True)
 class ExperimentSpec:
-    """Configuration for one base experiment or one single-change ablation."""
+    """Configuración de un experimento base o de una ablación de un solo cambio."""
 
     strategy_id: str
     strategy_name: str
@@ -46,10 +46,17 @@ class ExperimentSpec:
 
 
 def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
-    """Return all required strategies and their expected ablation studies.
+    """Devuelve todas las estrategias requeridas y sus estudios de ablación esperados.
 
-    E3 is delivered as a complete example. E1, E2, E4 and E5 are intentionally
-    visible but not implemented so students can complete and report them.
+    E3 se entrega como ejemplo completo. E1, E2, E4 y E5 son intencionalmente
+    visibles pero no implementados, para que los alumnos los completen y reporten.
+
+    Args:
+        config: Configuración de la aplicación, usada para derivar `lambda_age`
+            base y los `learning_rate` de cada spec.
+
+    Returns:
+        Diccionario que mapea el nombre de cada experimento a su `ExperimentSpec`.
     """
 
     low_lambda = config.lambda_age / 10
@@ -303,7 +310,7 @@ def build_experiment_catalog(config: AppConfig) -> dict[str, ExperimentSpec]:
 
 
 class ExperimentRunner:
-    """Run selected experiments and preserve report rows for every strategy."""
+    """Ejecuta los experimentos seleccionados y conserva filas de reporte para cada estrategia."""
 
     def __init__(
         self,
@@ -311,12 +318,33 @@ class ExperimentRunner:
         device: torch.device,
         catalog: dict[str, ExperimentSpec],
     ) -> None:
+        """Inicializa el runner con la configuración, el dispositivo y el catálogo de experimentos.
+
+        Args:
+            config: Configuración de la aplicación.
+            device: Dispositivo (CPU/GPU) donde se entrenan y evalúan los modelos.
+            catalog: Diccionario de nombre de experimento a `ExperimentSpec`.
+        """
         self.config = config
         self.device = device
         self.catalog = catalog
         self.plotter = ResultPlotter(config.plots_dir)
 
     def run(self, selected_names: set[str]) -> list[ExperimentResult]:
+        """Ejecuta los experimentos seleccionados y genera los gráficos de ablación.
+
+        Los experimentos no implementados o no seleccionados se reportan con su
+        estado correspondiente sin ejecutarse.
+
+        Args:
+            selected_names: Nombres de los experimentos del catálogo a ejecutar.
+
+        Returns:
+            Lista de `ExperimentResult`, uno por cada experimento del catálogo.
+
+        Raises:
+            ValueError: Si `selected_names` contiene nombres que no están en el catálogo.
+        """
         unknown = selected_names.difference(self.catalog)
         if unknown:
             raise ValueError(f"Experimentos desconocidos: {', '.join(sorted(unknown))}")
@@ -335,6 +363,15 @@ class ExperimentRunner:
         return results
 
     def _run_spec(self, spec: ExperimentSpec) -> ExperimentResult:
+        """Entrena y evalúa un experimento neuronal (o delega al baseline clásico).
+
+        Args:
+            spec: Especificación del experimento a ejecutar.
+
+        Returns:
+            `ExperimentResult` con las métricas, o con estado de error si la
+            ejecución falla.
+        """
         if spec.model_kind == "classical":
             return self._run_classical_spec(spec)
 
@@ -420,6 +457,15 @@ class ExperimentRunner:
             )
 
     def _run_classical_spec(self, spec: ExperimentSpec) -> ExperimentResult:
+        """Entrena y evalúa el baseline clásico (PCA + LogisticRegression/Ridge).
+
+        Args:
+            spec: Especificación del experimento clásico a ejecutar.
+
+        Returns:
+            `ExperimentResult` con las métricas, o con estado de error si la
+            ejecución falla.
+        """
         print(f"\nEjecutando {spec.name}: {spec.changed_component}")
         try:
             set_seed(self.config.seed)
@@ -477,6 +523,15 @@ class ExperimentRunner:
 
     @staticmethod
     def _extract_arrays(dataset: UTKFaceDataset) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Aplana todas las imágenes de un dataset en arreglos NumPy para el baseline clásico.
+
+        Args:
+            dataset: Dataset de UTKFace a recorrer.
+
+        Returns:
+            Tupla con las imágenes aplanadas, las etiquetas de género y las
+            edades, todas como `np.ndarray`.
+        """
         loader = DataLoader(dataset, batch_size=64, shuffle=False)
         images: list[torch.Tensor] = []
         genders: list[torch.Tensor] = []
@@ -492,6 +547,19 @@ class ExperimentRunner:
         return flattened, gender_array, age_array
 
     def _build_model(self, spec: ExperimentSpec) -> tuple[nn.Module, dict[str, int | float | bool]]:
+        """Construye el modelo neuronal correspondiente a `spec.model_kind`.
+
+        Args:
+            spec: Especificación del experimento, que determina la arquitectura
+                y sus hiperparámetros.
+
+        Returns:
+            Tupla con el modelo instanciado y los kwargs usados para construirlo
+            (estos últimos se guardan en el checkpoint para poder reconstruirlo).
+
+        Raises:
+            NotImplementedError: Si `spec.model_kind` no tiene una fábrica definida.
+        """
         if spec.model_kind == "cnn":
             model_kwargs = {"dropout": spec.dropout}
             return MultiTaskCNN(**model_kwargs), model_kwargs
@@ -513,6 +581,14 @@ class ExperimentRunner:
 
     @staticmethod
     def _count_trainable_parameters(model: nn.Module) -> int:
+        """Cuenta los parámetros del modelo con `requires_grad=True`.
+
+        Args:
+            model: Modelo de PyTorch del cual contar los parámetros.
+
+        Returns:
+            Número total de parámetros entrenables.
+        """
         return sum(
             parameter.numel()
             for parameter in model.parameters()
@@ -521,6 +597,14 @@ class ExperimentRunner:
 
     @staticmethod
     def _not_implemented_result(spec: ExperimentSpec) -> ExperimentResult:
+        """Construye el resultado de un experimento aún no implementado.
+
+        Args:
+            spec: Especificación del experimento.
+
+        Returns:
+            `ExperimentResult` con estado `NOT_IMPLEMENTED`.
+        """
         return ExperimentResult(
             strategy_id=spec.strategy_id,
             strategy_name=spec.strategy_name,
@@ -533,6 +617,14 @@ class ExperimentRunner:
 
     @staticmethod
     def _not_executed_result(spec: ExperimentSpec) -> ExperimentResult:
+        """Construye el resultado de un experimento implementado pero no seleccionado.
+
+        Args:
+            spec: Especificación del experimento.
+
+        Returns:
+            `ExperimentResult` con estado `NOT_EXECUTED`.
+        """
         return ExperimentResult(
             strategy_id=spec.strategy_id,
             strategy_name=spec.strategy_name,

@@ -1,4 +1,4 @@
-"""Multitask multilayer perceptron implemented with PyTorch."""
+"""Perceptrón multicapa multitarea implementado con PyTorch."""
 
 from __future__ import annotations
 
@@ -9,9 +9,16 @@ from src.models.base import BaseMultiTaskModel
 
 
 class MultiTaskMLP(BaseMultiTaskModel):
-    """Learn shared fully connected features and predict gender and age."""
+    """Aprende características totalmente conectadas compartidas y predice género y edad."""
 
     def __init__(self, image_size: int = 224, dropout: float = 0.4) -> None:
+        """Inicializa la arquitectura MLP multitarea.
+
+        Args:
+            image_size: Alto y ancho (en píxeles) de las imágenes cuadradas de entrada.
+            dropout: Probabilidad de dropout aplicada tras la primera capa oculta.
+                Debe estar en el intervalo [0, 1).
+        """
         super().__init__()
         if not 0.0 <= dropout < 1.0:
             raise ValueError("dropout debe estar en el intervalo [0, 1).")
@@ -30,6 +37,15 @@ class MultiTaskMLP(BaseMultiTaskModel):
         self.age_head = nn.Linear(128, 1)
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Calcula los logits de género y la predicción de edad de un lote de imágenes.
+
+        Args:
+            images: Tensor de imágenes de entrada con forma [B, 3, H, W].
+
+        Returns:
+            Tupla con los logits de género (forma [B, 2]) y las predicciones de
+            edad (forma [B]).
+        """
         representation = self.shared(images)
         gender_logits = self.gender_head(representation)
         age_predictions = self.age_head(representation).squeeze(1)

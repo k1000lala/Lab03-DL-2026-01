@@ -1,4 +1,4 @@
-"""Streamlit user interface for the delivered CNN model."""
+"""Interfaz de usuario en Streamlit para el modelo CNN entregado."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from src.utils import resolve_device
 
 
 def run_app() -> None:
-    """Render the upload/camera, face detection and prediction workflow."""
+    """Renderiza el flujo de carga/cámara, detección de rostro y predicción."""
 
     import streamlit as st
 

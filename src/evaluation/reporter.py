@@ -1,4 +1,4 @@
-"""Export experiment states and metrics to reproducible CSV and Markdown files."""
+"""Exporta estados y métricas de experimentos a archivos CSV y Markdown reproducibles."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class ExperimentStatus(str, Enum):
 
 @dataclass
 class ExperimentResult:
-    """One row in the final experiment comparison."""
+    """Una fila de la comparación final de experimentos."""
 
     strategy_id: str
     strategy_name: str
@@ -35,6 +35,11 @@ class ExperimentResult:
     message: str = ""
 
     def to_row(self) -> dict[str, Any]:
+        """Aplana el resultado en un diccionario adecuado para CSV/Markdown.
+
+        Returns:
+            Diccionario con los campos base del experimento y sus métricas.
+        """
         row = {
             "strategy_id": self.strategy_id,
             "strategy_name": self.strategy_name,
@@ -52,7 +57,7 @@ class ExperimentResult:
 
 
 class MetricsReporter:
-    """Write a global report and one ablation report per strategy."""
+    """Escribe un reporte global y un reporte de ablación por cada estrategia."""
 
     BASE_COLUMNS = [
         "strategy_id",
@@ -84,6 +89,11 @@ class MetricsReporter:
     }
 
     def __init__(self, reports_dir: Path) -> None:
+        """Inicializa el reporter y crea el directorio de salida si no existe.
+
+        Args:
+            reports_dir: Directorio donde se guardan todos los reportes generados.
+        """
         self.reports_dir = reports_dir
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
@@ -92,7 +102,16 @@ class MetricsReporter:
         results: list[ExperimentResult],
         environment_info: dict[str, Any],
     ) -> list[Path]:
-        """Export all rows, including missing and unexecuted strategies."""
+        """Exporta todas las filas, incluyendo estrategias faltantes o no ejecutadas.
+
+        Args:
+            results: Resultados de todos los experimentos del catálogo.
+            environment_info: Información del entorno de ejecución, volcada a JSON.
+
+        Returns:
+            Rutas de todos los archivos generados (reporte global, reportes por
+            estrategia y el JSON de entorno).
+        """
 
         output_paths: list[Path] = []
         output_paths.extend(
@@ -120,6 +139,15 @@ class MetricsReporter:
         results: list[ExperimentResult],
         output_base: Path,
     ) -> list[Path]:
+        """Escribe los resultados dados como archivos CSV y Markdown.
+
+        Args:
+            results: Resultados a volcar a la tabla.
+            output_base: Ruta base (sin extensión) de los archivos a generar.
+
+        Returns:
+            Lista con las rutas del archivo `.csv` y del archivo `.md` generados.
+        """
         rows = [result.to_row() for result in results]
         extra_columns = sorted(
             {
@@ -147,6 +175,15 @@ class MetricsReporter:
 
     @classmethod
     def _to_markdown(cls, rows: list[dict[str, Any]], columns: list[str]) -> str:
+        """Renderiza las filas como una tabla Markdown con un subconjunto de columnas legibles.
+
+        Args:
+            rows: Filas a renderizar, cada una un diccionario de columna a valor.
+            columns: Todas las columnas disponibles; solo se muestra un subconjunto fijo.
+
+        Returns:
+            Texto completo del reporte en formato Markdown.
+        """
         visible_columns = [
             column
             for column in columns
@@ -177,12 +214,29 @@ class MetricsReporter:
 
     @staticmethod
     def _format_csv(value: Any) -> Any:
+        """Normaliza un valor para escritura en CSV (NaN y None se vuelven cadena vacía).
+
+        Args:
+            value: Valor original de la celda.
+
+        Returns:
+            El valor listo para escribir en CSV.
+        """
         if isinstance(value, float) and math.isnan(value):
             return ""
         return value if value is not None else ""
 
     @staticmethod
     def _format_markdown(value: Any) -> str:
+        """Formatea un valor para mostrarlo en una celda de tabla Markdown.
+
+        Args:
+            value: Valor original de la celda.
+
+        Returns:
+            Representación en texto: "-" para None/NaN, 4 decimales para floats,
+            o `str(value)` con las barras verticales escapadas.
+        """
         if value is None or (isinstance(value, float) and math.isnan(value)):
             return "-"
         if isinstance(value, float):

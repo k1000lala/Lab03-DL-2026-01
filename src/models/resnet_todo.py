@@ -1,4 +1,4 @@
-"""ResNet transfer learning multitask model implemented with PyTorch."""
+"""Modelo multitarea de transferencia de aprendizaje basado en ResNet, implementado con PyTorch."""
 
 from __future__ import annotations
 
@@ -10,9 +10,20 @@ from src.models.base import BaseMultiTaskModel
 
 
 class MultiTaskResNet(BaseMultiTaskModel):
-    """Learn shared ResNet18 features and predict gender and age."""
+    """Aprende características compartidas de ResNet18 y predice género y edad."""
 
     def __init__(self, trainable_blocks: int = 0, pretrained: bool = True) -> None:
+        """Inicializa el backbone ResNet18 con un número configurable de bloques entrenables.
+
+        Args:
+            trainable_blocks: Cantidad de bloques residuales a descongelar, contando
+                desde el más profundo (`layer4`) hacia el más superficial (`layer1`).
+                Con 0, todo el backbone permanece congelado.
+            pretrained: Si es True, carga los pesos preentrenados de ImageNet.
+
+        Raises:
+            ValueError: Si `trainable_blocks` es negativo.
+        """
         super().__init__()
         if trainable_blocks < 0:
             raise ValueError("trainable_blocks debe ser >= 0.")
@@ -37,6 +48,15 @@ class MultiTaskResNet(BaseMultiTaskModel):
         self.age_head = nn.Linear(in_features, 1)
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Calcula los logits de género y la predicción de edad de un lote de imágenes.
+
+        Args:
+            images: Tensor de imágenes de entrada con forma [B, 3, H, W].
+
+        Returns:
+            Tupla con los logits de género (forma [B, 2]) y las predicciones de
+            edad (forma [B]).
+        """
         representation = self.backbone(images)
         gender_logits = self.gender_head(representation)
         age_predictions = self.age_head(representation).squeeze(1)

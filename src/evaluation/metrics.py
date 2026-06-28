@@ -1,4 +1,4 @@
-"""PyTorch-based metrics for gender classification and age regression."""
+"""Métricas basadas en PyTorch para clasificación de género y regresión de edad."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 @dataclass
 class EvaluationResult:
-    """Metrics plus raw values needed to build diagnostic plots."""
+    """Métricas más los valores crudos necesarios para construir gráficos de diagnóstico."""
 
     metrics: dict[str, float | int]
     confusion_matrix: list[list[int]]
@@ -22,7 +22,7 @@ class EvaluationResult:
 
 
 class MultiTaskMetrics:
-    """Calculate all required metrics without hiding their definitions."""
+    """Calcula todas las métricas requeridas sin ocultar sus definiciones."""
 
     AGE_RANGES = (
         ("0_12", 0.0, 13.0),
@@ -40,6 +40,21 @@ class MultiTaskMetrics:
         age_targets: torch.Tensor,
         age_predictions: torch.Tensor,
     ) -> EvaluationResult:
+        """Calcula métricas de clasificación de género y regresión de edad.
+
+        Args:
+            gender_targets: Etiquetas verdaderas de género, con forma [N].
+            gender_predictions: Etiquetas predichas de género, con forma [N].
+            age_targets: Edades verdaderas, con forma [N].
+            age_predictions: Edades predichas, con forma [N].
+
+        Returns:
+            `EvaluationResult` con las métricas agregadas, la matriz de confusión
+            y los valores crudos de predicción.
+
+        Raises:
+            ValueError: Si no hay muestras sobre las cuales calcular métricas.
+        """
         gender_targets = gender_targets.to(torch.long).cpu()
         gender_predictions = gender_predictions.to(torch.long).cpu()
         age_targets = age_targets.to(torch.float32).cpu()
@@ -96,6 +111,15 @@ class MultiTaskMetrics:
 
     @staticmethod
     def _safe_divide(numerator: torch.Tensor, denominator: torch.Tensor) -> torch.Tensor:
+        """Divide elemento a elemento, devolviendo 0 donde el denominador es 0.
+
+        Args:
+            numerator: Tensor numerador.
+            denominator: Tensor denominador, del mismo tamaño que `numerator`.
+
+        Returns:
+            Tensor con el cociente, o 0 en las posiciones donde `denominador <= 0`.
+        """
         return torch.where(denominator > 0, numerator / denominator, torch.zeros_like(numerator))
 
     @classmethod
@@ -104,6 +128,16 @@ class MultiTaskMetrics:
         age_targets: torch.Tensor,
         age_predictions: torch.Tensor,
     ) -> dict[str, float | int]:
+        """Calcula soporte y MAE de edad para cada rango definido en `AGE_RANGES`.
+
+        Args:
+            age_targets: Edades verdaderas, con forma [N].
+            age_predictions: Edades predichas, con forma [N].
+
+        Returns:
+            Diccionario con `age_support_<rango>` y `age_mae_<rango>` por cada
+            rango de edad; el MAE es NaN si el rango no tiene muestras.
+        """
         output: dict[str, float | int] = {}
         for label, lower, upper in cls.AGE_RANGES:
             mask = (age_targets >= lower) & (age_targets < upper)
@@ -119,13 +153,30 @@ class MultiTaskMetrics:
 
 
 class MultiTaskEvaluator:
-    """Collect predictions from a PyTorch model and calculate metrics."""
+    """Recolecta predicciones de un modelo de PyTorch y calcula métricas."""
 
     def __init__(self, device: torch.device) -> None:
+        """Inicializa el evaluador con el dispositivo donde se ejecuta el modelo.
+
+        Args:
+            device: Dispositivo (CPU/GPU) al cual mover las imágenes de entrada.
+        """
         self.device = device
 
     @torch.inference_mode()
     def evaluate(self, model: nn.Module, loader: DataLoader) -> EvaluationResult:
+        """Recorre el loader, genera predicciones y calcula las métricas finales.
+
+        Args:
+            model: Modelo de PyTorch ya entrenado, en modo evaluación.
+            loader: DataLoader con los lotes de imágenes y etiquetas a evaluar.
+
+        Returns:
+            `EvaluationResult` con las métricas calculadas sobre todo el loader.
+
+        Raises:
+            RuntimeError: Si el DataLoader no contiene muestras.
+        """
         model.eval()
         gender_targets: list[torch.Tensor] = []
         gender_predictions: list[torch.Tensor] = []

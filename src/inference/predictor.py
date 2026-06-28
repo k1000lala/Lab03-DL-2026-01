@@ -1,4 +1,4 @@
-"""Load the delivered CNN checkpoint and run PyTorch inference."""
+"""Carga el checkpoint de la CNN entregada y ejecuta inferencia con PyTorch."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from src.models.cnn import MultiTaskCNN
 
 @dataclass(frozen=True)
 class Prediction:
-    """Human-readable model output for one detected face."""
+    """Salida del modelo en formato legible para un rostro detectado."""
 
     gender_index: int
     gender_label: str
@@ -24,7 +24,7 @@ class Prediction:
 
 
 class CNNPredictor:
-    """Apply exactly the same deterministic preprocessing used during testing."""
+    """Aplica exactamente el mismo preprocesamiento determinista usado durante el testing."""
 
     GENDER_LABELS = {
         0: "Masculino",
@@ -37,6 +37,13 @@ class CNNPredictor:
         image_size: int,
         device: torch.device,
     ) -> None:
+        """Inicializa el predictor con un modelo ya cargado y su tamaño de imagen.
+
+        Args:
+            model: Modelo CNN ya entrenado.
+            image_size: Tamaño de imagen (en píxeles) usado para el preprocesamiento.
+            device: Dispositivo (CPU/GPU) donde se ejecuta el modelo.
+        """
         self.model = model.to(device)
         self.model.eval()
         self.image_size = image_size
@@ -49,6 +56,19 @@ class CNNPredictor:
         checkpoint_path: str | Path,
         device: torch.device,
     ) -> "CNNPredictor":
+        """Construye un predictor cargando el modelo y los pesos desde un checkpoint.
+
+        Args:
+            checkpoint_path: Ruta del archivo de checkpoint a cargar.
+            device: Dispositivo (CPU/GPU) donde se ejecuta el modelo.
+
+        Returns:
+            `CNNPredictor` listo para predecir.
+
+        Raises:
+            FileNotFoundError: Si `checkpoint_path` no existe.
+            ValueError: Si el checkpoint no corresponde a la arquitectura CNN.
+        """
         path = Path(checkpoint_path)
         if not path.exists():
             raise FileNotFoundError(
@@ -71,6 +91,14 @@ class CNNPredictor:
 
     @torch.inference_mode()
     def predict(self, image: Image.Image) -> Prediction:
+        """Preprocesa una imagen y predice género y edad.
+
+        Args:
+            image: Imagen de entrada (idealmente ya recortada al rostro).
+
+        Returns:
+            `Prediction` con el género, su confianza y la edad estimada.
+        """
         image_tensor = self.transform(image.convert("RGB")).unsqueeze(0).to(self.device)
         gender_logits, age_prediction = self.model(image_tensor)
         probabilities = torch.softmax(gender_logits, dim=1)

@@ -1,4 +1,4 @@
-"""Parse labels encoded in UTKFace image filenames."""
+"""Analiza las etiquetas codificadas en los nombres de archivo de UTKFace."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class UTKFaceRecord:
-    """A single image path and the labels extracted from its filename."""
+    """Una ruta de imagen y las etiquetas extraídas de su nombre de archivo."""
 
     path: Path
     age: float
@@ -17,11 +17,25 @@ class UTKFaceRecord:
 
 
 class UTKFaceFilenameParser:
-    """Convert names such as 25_1_2_20170116174525125.jpg into labels."""
+    """Convierte nombres como 25_1_2_20170116174525125.jpg en etiquetas."""
 
     VALID_GENDERS = {0, 1}
 
     def parse(self, path: str | Path) -> UTKFaceRecord:
+        """Extrae edad, género y raza del nombre de archivo de una imagen UTKFace.
+
+        Args:
+            path: Ruta de la imagen, cuyo nombre debe seguir el formato
+                `edad_genero_raza_fecha.jpg`.
+
+        Returns:
+            `UTKFaceRecord` con la ruta y las etiquetas extraídas.
+
+        Raises:
+            ValueError: Si el nombre de archivo no tiene el formato esperado, si
+                las etiquetas no son numéricas, si la edad es negativa o si el
+                género está fuera de `VALID_GENDERS`.
+        """
         image_path = Path(path)
         parts = image_path.stem.split("_")
         if len(parts) < 2:
